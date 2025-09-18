@@ -10,8 +10,8 @@ export default defineConfig({
   dialect: 'postgresql',
   // Where drizzle-kit pull will write your generated schema
   schema: './src/db/schema.ts',
-  // Migrations/output folder (used by other drizzle-kit commands)
-  out: './drizzle',
+  // Output folder for pull (schema.ts, relations.ts, meta) and migrations
+  out: './src/db',
   dbCredentials: {
     url,
     // Some managed Postgres require SSL. If not needed, set to false.
