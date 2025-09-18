@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import * as schema from "./schema";
 import * as relations from "./relations";
+import { config } from "@/config";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -11,7 +12,7 @@ declare global {
   var __drizzle: ReturnType<typeof drizzle> | undefined;
 }
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = config.DATABASE_URL;
 
 if (!connectionString) {
   throw new Error(

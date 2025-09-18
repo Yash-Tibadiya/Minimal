@@ -1,7 +1,8 @@
+import { config } from '@/config';
 import 'dotenv/config';
 import { defineConfig } from 'drizzle-kit';
 
-const url = process.env.DATABASE_URL;
+const url = config.DATABASE_URL;
 if (!url) {
   throw new Error('Missing env: DATABASE_URL. Add it to an .env file or your environment.');
 }
