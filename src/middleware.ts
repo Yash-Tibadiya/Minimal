@@ -1,4 +1,5 @@
-import { auth } from "@/auth";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import {
   apiAuthPrefix,
   AppRoutes,
@@ -7,47 +8,46 @@ import {
   publicRoutes,
 } from "./routes-config";
 
-export default auth(
-  (req: {
-    nextUrl: { pathname: any };
-    auth: any;
-    url: string | URL | undefined;
-  }): any => {
-    const pathname = req.nextUrl.pathname;
-    const session = req.auth;
-    const isLoggedIn = !!req.auth;
+// Edge-safe middleware: rely on presence of the session cookie only.
+// Avoid verifying JWT in middleware (jsonwebtoken is not Edge-compatible).
+const SESSION_COOKIE = "patient_session";
 
-    const user: any = session?.user;
+export default function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
 
-    const isApiAuthRoute = pathname.startsWith(apiAuthPrefix);
-    const isPublicRoute = publicRoutes.includes(pathname);
-    const isloginRoutes = loginRoutes.includes(pathname);
+  const isApiRoute = pathname.startsWith("/api");
+  const isApiAuthRoute = pathname.startsWith(apiAuthPrefix);
+  const isAuthRoute = authRoutes.includes(pathname);
 
-    // const isPublicApi = publicApis.includes(pathname);
+  // Determine auth status by cookie presence (Edge-safe)
+  const isLoggedIn = !!req.cookies.get(SESSION_COOKIE)?.value;
 
-    const isAuthRoute = authRoutes.includes(pathname);
+  // Public routes: intake forms and explicit public routes
+  const isPublicForm = pathname.startsWith("/form");
+  const isPublicRoute = isPublicForm || publicRoutes.includes(pathname);
 
-    if (isApiAuthRoute) {
-      return null;
-    }
+  const isLoginRoute = loginRoutes.includes(pathname);
 
-    if (isAuthRoute) {
-      return null;
-    }
-
-    if (isloginRoutes && isLoggedIn) {
-      return Response.redirect(new URL(AppRoutes.home, req.url));
-    }
-
-    if (!isLoggedIn && !isPublicRoute) {
-      const urlToRedirect = new URL(AppRoutes.login, req.url);
-      return Response.redirect(urlToRedirect);
-    }
-
-    return null;
+  // Always allow API routes to pass through middleware unmodified
+  if (isApiRoute || isApiAuthRoute || isAuthRoute) {
+    return NextResponse.next();
   }
-);
+
+  // If user is logged in and trying to access login routes, send them home
+  if (isLoginRoute && isLoggedIn) {
+    return NextResponse.redirect(new URL(AppRoutes.home, req.url));
+  }
+
+  // If user is not logged in and is trying to access a protected route, send to login
+  if (!isLoggedIn && !isPublicRoute) {
+    return NextResponse.redirect(new URL(AppRoutes.login, req.url));
+  }
+
+  // Otherwise allow the request
+  return NextResponse.next();
+}
 
 export const config = {
-  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
+  // Do NOT run middleware on API routes to avoid interfering with Set-Cookie
+  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/"],
 };
