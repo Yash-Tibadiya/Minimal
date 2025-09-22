@@ -159,7 +159,8 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
 
       const next = data?.nextStep ?? target;
       if (next) {
-        router.replace(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`);
+        // Use push so browser Back button returns to the previous question/step
+        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`);
       } else {
         // No next step - stay or show a placeholder completed message
         // window.location.assign(`/thank-you`);
