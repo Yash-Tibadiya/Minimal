@@ -184,14 +184,31 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   }
 
   function normalizeQuestions(list: any[] = []): QType[] {
-    return (list as any[]).map((q) => ({
-      ...q,
-      type: normalizeType(q?.type),
-    }));
+    return (list as any[]).map((q) => {
+      const label =
+        (
+          (q as any)?.text ?? // Prefer explicit question text if provided
+          q?.label ??
+          (q as any)?.question ??
+          (q as any)?.questionText ??
+          (q as any)?.title ??
+          (q as any)?.code ??
+          ""
+        ) as string;
+
+      return {
+        ...q,
+        type: normalizeType(q?.type),
+        // Ensure a label is available so the question text shows even if template uses different keys
+        label,
+        // Provide a sensible placeholder if not provided
+        placeholder: q?.placeholder ?? (label || undefined),
+      } as any;
+    });
   }
 
   function getCodeKey(q: any): string {
-    return (q?.code ?? q?.name ?? "") as string;
+    return (q?.code ?? "") as string;
   }
 
   function toJsonSafeAnswers(obj: Record<string, any>): Record<string, any> {
@@ -223,6 +240,8 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   );
   const allPages = questionSteps;
   const currentHasQuestions = (normalizedQuestions?.length ?? 0) > 0;
+  // Auto-advance only when a page has a single question
+  const shouldAutoAdvance = (normalizedQuestions?.length ?? 0) === 1;
 
   const columnClass = useMemo(() => {
     const cols = page?.columns || 1;
@@ -232,7 +251,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   }, [page?.columns]);
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+    <main className="min-h-screen flex justify-center p-4 bg-green-250">
       <div className="w-full max-w-xl">
         {currentHasQuestions && allPages.length > 0 ? (
           <div className="flex justify-center pt-0 sm:pt-4 mb-4">
@@ -252,11 +271,13 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
           </div>
         ) : null}
 
-        <div className="mb-6 mt-8">
-          <h1 className="text-2xl sm:text-4xl font-medium text-green-850 tracking-tight">
-            {page?.title}
-          </h1>
-        </div>
+        {currentHasQuestions ? (
+          <div className="mb-6 mt-8">
+            <h1 className="text-2xl sm:text-4xl font-medium text-green-850 tracking-tight">
+              {page?.title}
+            </h1>
+          </div>
+        ) : null}
 
         {error && (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -272,7 +293,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
           <>
             {page.desc ? (
               <div
-                className="prose prose-sm mb-4 text-gray-700"
+                className="mb-4 text-gray-700"
                 dangerouslySetInnerHTML={{ __html: page.desc }}
               />
             ) : null}
@@ -280,8 +301,18 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
             <div className={`${columnClass} gap-4`}>
               {normalizedQuestions.map((q, i) => {
                 const key = getCodeKey(q as any) || String(i);
+                // Support per-question column span if provided in template (1..3)
+                const spanRaw = Number((q as any)?.colspan ?? 1);
+                const span = Number.isFinite(spanRaw) ? Math.max(1, Math.min(3, spanRaw)) : 1;
+                const spanClass =
+                  span === 3
+                    ? "col-span-1 md:col-span-3"
+                    : span === 2
+                    ? "col-span-1 md:col-span-2"
+                    : "col-span-1";
+
                 return (
-                  <div key={key} className="col-span-1">
+                  <div key={key} className={spanClass}>
                     {q.label ? (
                       <label className="block text-sm font-medium mb-1">
                         {q.label}
@@ -292,6 +323,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                       value={answers[key]}
                       onChange={updateAnswer}
                       handleNext={() => go("next")}
+                      autoAdvance={shouldAutoAdvance}
                     />
                   </div>
                 );
@@ -299,10 +331,12 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
             </div>
 
             {page.pageContent ? (
-              <div
-                className="prose prose-sm mt-4 text-gray-700"
-                dangerouslySetInnerHTML={{ __html: page.pageContent }}
-              />
+              <>
+                <div
+                  className="mt-4"
+                  dangerouslySetInnerHTML={{ __html: page.pageContent }}
+                />
+              </>
             ) : null}
 
             <div className="mt-6 flex items-center gap-3">

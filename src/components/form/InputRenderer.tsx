@@ -6,8 +6,9 @@ const InputRenderer: React.FC<InputRendererProps> = ({
   value,
   onChange,
   handleNext,
+  autoAdvance,
 }) => {
-  const codeKey = (q as any).code ?? (q as any).name ?? "";
+  const codeKey = (q as any).code ?? "";
   const baseInputClasses =
     "w-full p-6 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#253c3c] focus:border-[#253c3c] transition-all duration-200 bg-white shadow-sm hover:shadow-md text-gray-900 placeholder-gray-500";
 
@@ -65,8 +66,8 @@ const InputRenderer: React.FC<InputRendererProps> = ({
             return (
               <label
                 key={optValue}
-                className={`flex items-center p-3 sm:p-6 rounded-lg border-2 border-[#193231cb] hover:bg-[#1932312a] cursor-pointer transition-all duration-200 ${
-                  isSelected ? "bg-green-100/50" : ""
+                className={`flex items-center p-3 sm:p-6 rounded-lg border-2 border-[#193231cb] hover:bg-green-50 cursor-pointer transition-all duration-200 ${
+                  isSelected ? "bg-[#1932312a] " : ""
                 }`}
               >
                 <input
@@ -76,11 +77,15 @@ const InputRenderer: React.FC<InputRendererProps> = ({
                   checked={isSelected}
                   onChange={(e) => {
                     setVal(e.target.value);
-                    if (!q.showFollowupWhen || e.target.value !== q.showFollowupWhen) {
+                    if (
+                      autoAdvance &&
+                      (!q.showFollowupWhen || e.target.value !== q.showFollowupWhen)
+                    ) {
                       handleNext?.();
                     }
                   }}
                   onClick={(e) => {
+                    if (!autoAdvance) return;
                     if (value === optValue) {
                       if (!q.showFollowupWhen || optValue !== q.showFollowupWhen) {
                         handleNext?.();
@@ -244,7 +249,7 @@ const InputRenderer: React.FC<InputRendererProps> = ({
                 }`}
                 onClick={() => {
                   setVal(opt === "yes");
-                  handleNext?.();
+                  if (autoAdvance) handleNext?.();
                 }}
               >
                 {opt.toUpperCase()}

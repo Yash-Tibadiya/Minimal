@@ -55,4 +55,5 @@ export type InputRendererProps = {
   value: any;
   onChange: (code: string, value: any) => void;
   handleNext?: () => void;
+  autoAdvance?: boolean; // Only auto-advance when a page has a single question
 };
