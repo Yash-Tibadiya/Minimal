@@ -15,6 +15,30 @@ const InputRenderer: React.FC<InputRendererProps> = ({
   // Coerce a generic onChange dispatcher that always uses codeKey
   const setVal = (v: any) => onChange(codeKey, v);
 
+  // Normalize a label and detect "none-like" exclusive options
+  const normalize = (s: string) =>
+    String(s || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const isNoneLike = (label: string) => {
+    const n = normalize(label);
+    const patterns = [
+      "none of the above",
+      "none of these",
+      "none",
+      "no",
+      "no preference",
+      "not applicable",
+      "n a", // covers "n/a" after normalization
+      "na",
+      "nothing",
+    ];
+    return patterns.some((p) => n === p || n.includes(p));
+  };
+
   switch (q.type) {
     case "text":
     case "email":
@@ -123,7 +147,7 @@ const InputRenderer: React.FC<InputRendererProps> = ({
           {q.options?.map((opt: any) => {
             const optValue = typeof opt === "string" ? opt : opt.value;
             const optLabel = typeof opt === "string" ? opt : opt.label;
-            const isNoneOfTheAbove = (optLabel || "").toLowerCase().includes("none of the above");
+            const isNoneLikeOption = isNoneLike(optLabel || "");
             const isChecked = Array.isArray(value) && value.includes(optValue);
             return (
               <label
@@ -141,7 +165,7 @@ const InputRenderer: React.FC<InputRendererProps> = ({
                     let updated: string[];
 
                     if (e.target.checked) {
-                      if (isNoneOfTheAbove) {
+                      if (isNoneLikeOption) {
                         updated = [optValue];
                       } else {
                         updated = current.filter((v) => {
@@ -152,7 +176,7 @@ const InputRenderer: React.FC<InputRendererProps> = ({
                             typeof option === "string"
                               ? option
                               : option?.label || "";
-                          return !optionLabel.toLowerCase().includes("none of the above");
+                          return !isNoneLike(optionLabel || "");
                         });
                         updated.push(optValue);
                       }
