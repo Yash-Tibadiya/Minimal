@@ -1,181 +1,352 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { AppRoutes } from "@/routes-config";
+import InputRenderer from "@/components/form/InputRenderer";
+import type { Question as QType } from "@/types/question";
+import Image from "next/image";
+import ProgressBar from "@/components/form/ProgressBar";
+
+// Using Question type from '@/types/question'
+
+type TemplatePage = {
+  code: string;
+  title?: string;
+  desc?: string;
+  footer?: string;
+  columns?: number;
+  questions?: QType[];
+  pageContent?: string;
+  nextPage?: string[];
+};
+
+type GetMeta = {
+  total: number;
+  firstStep: string;
+  currentStep: string;
+  valid: boolean;
+  prevStep: string | null;
+  nextStep: string | null;
+};
+
+type GetPayload = {
+  success: boolean;
+  template: {
+    code: string;
+    title?: string;
+    description?: string;
+    requireConsent?: boolean;
+    showThankyouPage?: boolean;
+  } | null;
+  steps?: {
+    allSteps: string[];
+    questionSteps: string[];
+  };
+  pagesMeta: GetMeta;
+  page: TemplatePage | null;
+};
 
 export default function IntakeStepPage() {
   const routeParams = useParams<{ "form-type": string; step: string }>();
   const formType = (routeParams?.["form-type"] as string) || "";
   const step = (routeParams?.step as string) || "";
   const router = useRouter();
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [state, setState] = useState("");
-  const [phone, setPhone] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [info, setInfo] = useState<string | null>(null);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const [templateTitle, setTemplateTitle] = useState<string>("");
+  const [pagesMeta, setPagesMeta] = useState<GetMeta | null>(null);
+  const [page, setPage] = useState<TemplatePage | null>(null);
+  const [questionSteps, setQuestionSteps] = useState<string[]>([]);
+  const [allSteps, setAllSteps] = useState<string[]>([]);
+
+  // answers for current step (keyed by question.name)
+  const [answers, setAnswers] = useState<Record<string, any>>({});
+
+  const currentIndex = useMemo(() => {
+    if (!pagesMeta) return 1;
+    const code = pagesMeta.currentStep;
+    const idx = (questionSteps || []).indexOf(code);
+    return idx >= 0 ? idx + 1 : 1;
+  }, [pagesMeta, questionSteps]);
+
+  const fetchPage = useCallback(async () => {
+    if (!formType) return;
     setLoading(true);
-    setInfo(null);
     setError(null);
-
     try {
-      const res = await fetch("/api/create-patient", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          firstName,
-          lastName,
-          email,
-          state,
-          phone,
-        }),
-      });
+      const res = await fetch(
+        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(
+          step
+        )}`,
+        { credentials: "include" }
+      );
 
-      const data = await res.json().catch(() => ({} as any));
+      // If form template not found, redirect to app not-found page
+      if (res.status === 404) {
+        router.replace(AppRoutes.notFound);
+        return;
+      }
+
+      const data = (await res.json()) as GetPayload;
 
       if (!res.ok || !data?.success) {
-        throw new Error(data?.message || "Failed to save. Try again.");
+        throw new Error((data as any)?.message || "Failed to load form page");
       }
 
-      try {
-        router.replace(AppRoutes.home);
-      } finally {
-        // Ensure navigation happens after the browser commits any Set-Cookie headers
-        setTimeout(() => {
-          if (typeof window !== "undefined") {
-            window.location.assign(AppRoutes.home);
-          }
-        }, 0);
+      // If step is invalid, redirect to firstStep
+      if (!data.pagesMeta?.valid) {
+        const first = data.pagesMeta?.firstStep;
+        if (first) {
+          router.replace(
+            `/form/${encodeURIComponent(formType)}/${encodeURIComponent(first)}`
+          );
+          return;
+        }
       }
-      return;
-    } catch (err: any) {
-      setError(err?.message || "Something went wrong. Please try again.");
+
+      setTemplateTitle(data.template?.title || formType);
+      setPagesMeta(data.pagesMeta);
+      setPage(data.page || null);
+      setAllSteps(data.steps?.allSteps || []);
+      setQuestionSteps(data.steps?.questionSteps || []);
+
+      // Reset answers on step change (no prefill available in current API)
+      setAnswers({});
+    } catch (e: any) {
+      setError(e?.message || "Something went wrong");
     } finally {
       setLoading(false);
     }
+  }, [formType, step, router]);
+
+  useEffect(() => {
+    fetchPage();
+  }, [fetchPage]);
+
+  function updateAnswer(name: string, value: any) {
+    setAnswers((prev) => ({ ...prev, [name]: value }));
   }
+
+  async function go(direction: "prev" | "next") {
+    if (!pagesMeta) return;
+    const target =
+      direction === "prev" ? pagesMeta.prevStep : pagesMeta.nextStep;
+
+    if (direction === "prev") {
+      if (target) {
+        router.push(
+          `/form/${encodeURIComponent(formType)}/${encodeURIComponent(target)}`
+        );
+      }
+      return;
+    }
+
+    // direction === "next" - persist progress if session has a patient and a row already exists (handled server-side)
+    setSaving(true);
+    setError(null);
+    try {
+      const safeAnswers = toJsonSafeAnswers(answers);
+      const res = await fetch(
+        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(
+          step
+        )}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ answers: safeAnswers }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to save step");
+      }
+
+      const next = data?.nextStep ?? target;
+      if (next) {
+        router.replace(
+          `/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`
+        );
+      } else {
+        // No next step - stay or show a placeholder completed message
+        // You may replace this with a redirect to thank-you or review page using template flags.
+        // window.location.assign(`/thank-you`);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Failed to proceed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Normalize question type names to the renderer-supported set
+  function normalizeType(t: any): QType["type"] {
+    const v = String(t || "text").toLowerCase();
+    if (v === "select") return "dropdown";
+    if (v === "tel" || v === "phone" || v === "phone number") return "phone";
+    if (v === "yes/no" || v === "yesno" || v === "boolean") return "yesNo";
+    if (v === "searchabledropdown" || v === "searchable-dropdown")
+      return "searchableDropdown";
+    // keep textarea, text, email, number, date, radio, checkbox, dropdown, document, toggle
+    return v as QType["type"];
+  }
+
+  function normalizeQuestions(list: any[] = []): QType[] {
+    return (list as any[]).map((q) => ({
+      ...q,
+      type: normalizeType(q?.type),
+    }));
+  }
+
+  function getCodeKey(q: any): string {
+    return (q?.code ?? q?.name ?? "") as string;
+  }
+
+  function toJsonSafeAnswers(obj: Record<string, any>): Record<string, any> {
+    const isFile = (f: any) => typeof File !== "undefined" && f instanceof File;
+
+    const fileToMeta = (f: File) => ({
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    });
+
+    const safeVal = (v: any): any => {
+      if (Array.isArray(v)) {
+        if (v.length > 0 && isFile(v[0])) {
+          return v.map((f: any) => (isFile(f) ? fileToMeta(f) : f));
+        }
+        return v.map((x) => x);
+      }
+      if (isFile(v)) return fileToMeta(v as any);
+      return v;
+    };
+
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(obj || {})) {
+      out[k] = safeVal(v);
+    }
+    return out;
+  }
+
+  const normalizedQuestions = useMemo(
+    () => normalizeQuestions((page?.questions as any) || []),
+    [page?.questions]
+  );
+  const allPages = questionSteps;
+  const currentHasQuestions = (normalizedQuestions?.length ?? 0) > 0;
+
+  const columnClass = useMemo(() => {
+    const cols = page?.columns || 1;
+    if (cols <= 1) return "grid grid-cols-1";
+    if (cols === 2) return "grid grid-cols-1 md:grid-cols-2";
+    return "grid grid-cols-1 md:grid-cols-3";
+  }, [page?.columns]);
 
   return (
     <main className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
-      <div className="w-full max-w-2xl rounded-xl border bg-white p-6 shadow-sm">
-        <div className="mb-6">
-          <div className="text-xs uppercase tracking-wider text-gray-500">
-            Qualification Form
+      <div className="w-full max-w-xl">
+        {currentHasQuestions && allPages.length > 0 ? (
+          <div className="flex justify-center pt-0 sm:pt-4 mb-4">
+            <Image
+              src="/images/logo.png"
+              alt="Logo"
+              width={500}
+              height={500}
+              className="w-24 h-auto object-contain"
+            />
           </div>
-          <h1 className="text-2xl font-semibold">
-            {formType} / Step {step}
+        ) : null}
+
+        {currentHasQuestions && allPages.length > 0 ? (
+          <div className="mb-4">
+            <ProgressBar
+              currentStepIndex={currentIndex}
+              totalSteps={allPages.length}
+            />
+          </div>
+        ) : null}
+
+        <div className="mb-6 mt-8">
+          <h1 className="text-2xl sm:text-4xl font-medium text-green-850 tracking-tight">
+            {page?.title}
           </h1>
         </div>
 
-        {info && (
-          <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
-            {info}
-          </div>
-        )}
         {error && (
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
             {error}
           </div>
         )}
 
-        <form
-          onSubmit={onSubmit}
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-        >
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">First name</label>
-            <input
-              value={firstName}
-              onChange={(e) => setFirstName(e.target.value)}
-              required
-              className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="John"
-            />
-          </div>
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Last name</label>
-            <input
-              value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
-              required
-              className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="Doe"
-            />
-          </div>
+        {loading ? (
+          <div></div>
+        ) : !page ? (
+          <div></div>
+        ) : (
+          <>
+            {page.desc ? (
+              <div
+                className="prose prose-sm mb-4 text-gray-700"
+                dangerouslySetInnerHTML={{ __html: page.desc }}
+              />
+            ) : null}
 
-          <div className="col-span-1 md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="you@example.com"
-            />
-          </div>
+            <div className={`${columnClass} gap-4`}>
+              {normalizedQuestions.map((q, i) => {
+                const key = getCodeKey(q as any) || String(i);
+                return (
+                  <div key={key} className="col-span-1">
+                    {q.label ? (
+                      <label className="block text-sm font-medium mb-1">
+                        {q.label}
+                      </label>
+                    ) : null}
+                    <InputRenderer
+                      question={q as any}
+                      value={answers[key]}
+                      onChange={updateAnswer}
+                      handleNext={() => go("next")}
+                    />
+                  </div>
+                );
+              })}
+            </div>
 
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">State</label>
-            <input
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-              className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="CA"
-            />
-          </div>
+            {page.pageContent ? (
+              <div
+                className="prose prose-sm mt-4 text-gray-700"
+                dangerouslySetInnerHTML={{ __html: page.pageContent }}
+              />
+            ) : null}
 
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Phone</label>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-              className="w-full rounded-md border px-3 py-2 outline-none focus:ring-2 focus:ring-black/10"
-              placeholder="+1 555 555 5555"
-            />
-          </div>
+            <div className="mt-6 flex items-center gap-3">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => go("next")}
+                className="px-6 py-3 bg-[#193231] hover:bg-[#193231f2] text-white rounded-full font-semibold shadow-xl hover:shadow-[#19323157] flex items-center w-full justify-center cursor-pointer"
+              >
+                {saving
+                  ? "Saving..."
+                  : pagesMeta?.nextStep
+                  ? "Save & Continue"
+                  : "Finish"}
+              </button>
+            </div>
 
-          <div className="col-span-1 md:col-span-2 flex items-center gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-md bg-black text-white px-4 py-2 disabled:opacity-60"
-            >
-              {loading ? "Saving..." : "Save Personal Information"}
-            </button>
-
-            <a
-              href="/login"
-              className="text-sm text-blue-600 hover:underline"
-              onClick={(e) => {
-                // allow open in new tab naturally
-              }}
-            >
-              Already have an account? Login
-            </a>
-
-            <button
-              type="button"
-              onClick={() => router.push("/")}
-              className="ml-auto rounded-md border px-4 py-2 text-sm"
-            >
-              Go to Dashboard
-            </button>
-          </div>
-        </form>
-
-        <p className="text-xs text-gray-500 mt-6">
-          Note: Submitting personal info registers or updates your patient
-          record. You can return to complete the rest of the form steps later.
-        </p>
+            {page.footer ? (
+              <div
+                className="prose prose-sm mt-6 text-gray-500"
+                dangerouslySetInnerHTML={{ __html: page.footer }}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     </main>
   );
