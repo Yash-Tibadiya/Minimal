@@ -105,19 +105,21 @@ export default function LoginPage() {
               <div className="p-6 md:p-8">
                 <div className="flex flex-col gap-6">
                   <div className="flex flex-col items-center text-center">
-                    <h1 className="text-2xl font-bold">Welcome</h1>
-                    <p className="text-muted-foreground text-balance">
+                    <h1 className="text-2xl font-bold text-green-850">
+                      Welcome
+                    </h1>
+                    <p className="text-balance text-green-750">
                       Login to your Minimal account
                     </p>
                   </div>
 
                   {!info && (
-                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800 font-medium">
+                    <div className="rounded-md border border-green-550 bg-green-250 px-3 py-3 text-xs text-green-850 font-medium">
                       We sent a 6-digit code to your email
                     </div>
                   )}
                   {info && (
-                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800 font-medium">
+                    <div className="rounded-md border border-green-550 bg-green-250 px-3 py-3 text-xs text-green-850 font-medium">
                       {info}
                     </div>
                   )}
@@ -144,7 +146,7 @@ export default function LoginPage() {
                       </div>
                       <Button
                         type="submit"
-                        className="w-full"
+                        className="w-full bg-green-750 hover:bg-green-850"
                         disabled={loading || !email}
                       >
                         {loading ? (
@@ -154,12 +156,12 @@ export default function LoginPage() {
                         )}
                       </Button>
                       <div className="text-center text-sm">
-                        Don't have an account?{" "}
+                        Get back to{" "}
                         <Link
                           href="/signup"
-                          className="underline underline-offset-2"
+                          className="underline underline-offset-2 text-green-750 font-medium"
                         >
-                          Sign up
+                          intake form
                         </Link>
                       </div>
                     </form>
@@ -187,7 +189,7 @@ export default function LoginPage() {
                       </div>
                       <Button
                         type="submit"
-                        className="w-full"
+                        className="w-full bg-green-750 hover:bg-green-850"
                         disabled={loading || code.length !== 6}
                       >
                         {loading ? (
@@ -206,9 +208,9 @@ export default function LoginPage() {
                             setInfo(null);
                             setError(null);
                           }}
-                          className="underline underline-offset-2"
+                          className="underline underline-offset-2 text-green-750 font-medium"
                         >
-                          email
+                          Email
                         </Link>
                       </div>
                     </form>
