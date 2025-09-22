@@ -266,9 +266,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   return (
     <main className="min-h-screen flex justify-center p-4 bg-green-250 overflow-x-hidden">
       {/* Force remount on step change so animation re-triggers */}
-      <div className="w-full max-w-xl">
+      <div key={step} className="w-full max-w-xl">
         {loading || !page ? null : (
-          <div>
+          <div className="animate-enter">
             {currentHasQuestions && allPages.length > 0 ? (
               <div className="flex justify-center pt-0 sm:pt-4 mb-4">
                 <Image
