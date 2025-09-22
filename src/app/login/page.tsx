@@ -143,12 +143,6 @@ export default function LoginPage() {
                   ) : (
                     <form onSubmit={verifyCode} className="grid gap-4">
                       <div className="grid gap-2">
-                        <label className="text-sm font-medium" htmlFor="email-disabled">
-                          Email
-                        </label>
-                        <Input id="email-disabled" type="email" required disabled value={email} />
-                      </div>
-                      <div className="grid gap-2">
                         <label className="text-sm font-medium">6-digit code</label>
                         <InputOTP
                           maxLength={6}
