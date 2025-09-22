@@ -32,9 +32,13 @@ function findNextStep(pages: TemplatePage[], idx: number, current: TemplatePage)
   return null;
 }
 
-export async function GET(_req: Request, ctx: { params: RouteParams }) {
-  const formType = (ctx.params?.["form-type"] || "").toString().trim();
-  const step = (ctx.params?.step || "").toString().trim();
+export async function GET(
+  _req: Request,
+  context: { params: Promise<RouteParams> }
+) {
+  const params = await context.params;
+  const formType = (params?.["form-type"] || "").toString().trim();
+  const step = (params?.step || "").toString().trim();
 
   if (!formType) {
     return NextResponse.json({ success: false, message: "Missing form-type" }, { status: 400 });
@@ -91,9 +95,13 @@ export async function GET(_req: Request, ctx: { params: RouteParams }) {
   });
 }
 
-export async function POST(req: Request, ctx: { params: RouteParams }) {
-  const formType = (ctx.params?.["form-type"] || "").toString().trim();
-  const step = (ctx.params?.step || "").toString().trim();
+export async function POST(
+  req: Request,
+  context: { params: Promise<RouteParams> }
+) {
+  const params = await context.params;
+  const formType = (params?.["form-type"] || "").toString().trim();
+  const step = (params?.step || "").toString().trim();
 
   if (!formType || !step) {
     return NextResponse.json({ success: false, message: "Missing form-type or step" }, { status: 400 });

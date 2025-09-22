@@ -2,10 +2,6 @@ import { NextResponse } from "next/server";
 import { createSessionResponse } from "@/auth";
 import { verifyLoginCode } from "@/model/auth";
 
-function ok() {
-  return NextResponse.json({ success: true });
-}
-
 function bad(message: string) {
   return NextResponse.json({ success: false, message }, { status: 400 });
 }
