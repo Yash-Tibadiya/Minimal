@@ -1,86 +1,93 @@
-"use client"
+"use client";
 
-import React, { useState } from "react"
-import Image from "next/image"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { LoaderCircle } from "lucide-react"
+import React, { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { LoaderCircle } from "lucide-react";
 
-import { AppRoutes } from "@/routes-config"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp"
+import { AppRoutes } from "@/routes-config";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 
 export default function LoginPage() {
-  const router = useRouter()
-  const [stage, setStage] = useState<"email" | "code">("email")
-  const [email, setEmail] = useState("")
-  const [code, setCode] = useState("")
-  const [loading, setLoading] = useState(false)
-  const [info, setInfo] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const router = useRouter();
+  const [stage, setStage] = useState<"email" | "code">("email");
+  const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   async function requestOtp(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setInfo(null)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setInfo(null);
     try {
       const res = await fetch("/api/login-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ email }),
-      })
+      });
       if (res.ok) {
-        setStage("code")
-        setInfo("If the email exists, a 6-digit code has been sent.")
+        setStage("code");
+        setInfo("If the email exists, a 6-digit code has been sent.");
       } else {
-        const j = await res.json().catch(() => ({}))
-        setError(j?.message || "Unable to send code. Try again.")
+        const j = await res.json().catch(() => ({}));
+        setError(j?.message || "Unable to send code. Try again.");
       }
     } catch {
-      setError("Network error. Try again.")
+      setError("Network error. Try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   async function verifyCode(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    setInfo(null)
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setInfo(null);
     try {
       const res = await fetch("/api/verify-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ email, code }),
-      })
-      const j = await res.json().catch(() => ({}))
+      });
+      const j = await res.json().catch(() => ({}));
       if (res.ok && j?.success === true) {
         if (typeof window !== "undefined") {
-          window.location.replace(AppRoutes.home)
-          return
+          window.location.replace(AppRoutes.home);
+          return;
         }
-        router.replace(AppRoutes.home)
-        return
+        router.replace(AppRoutes.home);
+        return;
       } else {
-        setError(j?.message || "Invalid or expired code.")
+        setError(j?.message || "Invalid or expired code.");
       }
     } catch {
-      setError("Network error. Try again.")
+      setError("Network error. Try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   return (
     <div className="bg-muted flex min-h-svh flex-col items-center justify-center p-6 md:p-10">
       <div className="flex w-full max-w-sm flex-col gap-6 md:max-w-3xl">
-        <Link href="/" className="flex items-center gap-3 self-center font-medium">
+        <Link
+          href="/"
+          className="flex items-center gap-3 self-center font-medium"
+        >
           <div className="flex items-center justify-center rounded-md">
             <Image
               width={500}
@@ -96,7 +103,7 @@ export default function LoginPage() {
           <Card className="overflow-hidden p-0">
             <CardContent className="grid p-0 md:grid-cols-2">
               <div className="p-6 md:p-8">
-                <div className="flex flex-col gap-8">
+                <div className="flex flex-col gap-6">
                   <div className="flex flex-col items-center text-center">
                     <h1 className="text-2xl font-bold">Welcome</h1>
                     <p className="text-muted-foreground text-balance">
@@ -104,8 +111,13 @@ export default function LoginPage() {
                     </p>
                   </div>
 
+                  {!info && (
+                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800 font-medium">
+                      We sent a 6-digit code to your email
+                    </div>
+                  )}
                   {info && (
-                    <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                    <div className="rounded-md border border-green-200 bg-green-50 px-3 py-3 text-xs text-green-800 font-medium">
                       {info}
                     </div>
                   )}
@@ -130,20 +142,33 @@ export default function LoginPage() {
                           onChange={(e) => setEmail(e.target.value)}
                         />
                       </div>
-                      <Button type="submit" className="w-full" disabled={loading || !email}>
-                        {loading ? <LoaderCircle className="size-4 animate-spin" /> : "Send Login Code"}
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={loading || !email}
+                      >
+                        {loading ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          "Send Login Code"
+                        )}
                       </Button>
                       <div className="text-center text-sm">
                         Don't have an account?{" "}
-                        <Link href="/signup" className="underline underline-offset-2">
+                        <Link
+                          href="/signup"
+                          className="underline underline-offset-2"
+                        >
                           Sign up
                         </Link>
                       </div>
                     </form>
                   ) : (
-                    <form onSubmit={verifyCode} className="grid gap-4">
+                    <form onSubmit={verifyCode} className="grid gap-6">
                       <div className="grid gap-2">
-                        <label className="text-sm font-medium">6-digit code</label>
+                        <label className="text-sm font-medium">
+                          6-digit code
+                        </label>
                         <InputOTP
                           maxLength={6}
                           value={code}
@@ -160,22 +185,32 @@ export default function LoginPage() {
                           </InputOTPGroup>
                         </InputOTP>
                       </div>
-                      <Button type="submit" className="w-full" disabled={loading || code.length !== 6}>
-                        {loading ? <LoaderCircle className="size-4 animate-spin" /> : "Verify and Login"}
-                      </Button>
                       <Button
-                        type="button"
-                        variant="ghost"
-                        className="justify-start text-sm"
-                        onClick={() => {
-                          setStage("email")
-                          setCode("")
-                          setInfo(null)
-                          setError(null)
-                        }}
+                        type="submit"
+                        className="w-full"
+                        disabled={loading || code.length !== 6}
                       >
-                        Use a different email
+                        {loading ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          "Verify and Login"
+                        )}
                       </Button>
+                      <div className="text-center text-sm">
+                        Use a different{" "}
+                        <Link
+                          href="/login"
+                          onClick={() => {
+                            setStage("email");
+                            setCode("");
+                            setInfo(null);
+                            setError(null);
+                          }}
+                          className="underline underline-offset-2"
+                        >
+                          email
+                        </Link>
+                      </div>
                     </form>
                   )}
                 </div>
@@ -198,5 +233,5 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }
