@@ -79,7 +79,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     setError(null);
     try {
       const res = await fetch(
-        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(step)}`,
+        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(
+          step
+        )}`,
         { credentials: "include" }
       );
 
@@ -99,7 +101,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       if (!data.pagesMeta?.valid) {
         const first = data.pagesMeta?.firstStep;
         if (first) {
-          router.replace(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(first)}`);
+          router.replace(
+            `/form/${encodeURIComponent(formType)}/${encodeURIComponent(first)}`
+          );
           return;
         }
       }
@@ -129,11 +133,14 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
 
   async function go(direction: "prev" | "next") {
     if (!pagesMeta) return;
-    const target = direction === "prev" ? pagesMeta.prevStep : pagesMeta.nextStep;
+    const target =
+      direction === "prev" ? pagesMeta.prevStep : pagesMeta.nextStep;
 
     if (direction === "prev") {
       if (target) {
-        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(target)}`);
+        router.push(
+          `/form/${encodeURIComponent(formType)}/${encodeURIComponent(target)}`
+        );
       }
       return;
     }
@@ -144,7 +151,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     try {
       const safeAnswers = toJsonSafeAnswers(answers);
       const res = await fetch(
-        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(step)}`,
+        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(
+          step
+        )}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -160,7 +169,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       const next = data?.nextStep ?? target;
       if (next) {
         // Use push so browser Back button returns to the previous question/step
-        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`);
+        router.push(
+          `/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`
+        );
       } else {
         // No next step - stay or show a placeholder completed message
         // window.location.assign(`/thank-you`);
@@ -178,23 +189,21 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     if (v === "select") return "dropdown";
     if (v === "tel" || v === "phone" || v === "phone number") return "phone";
     if (v === "yes/no" || v === "yesno" || v === "boolean") return "yesNo";
-    if (v === "searchabledropdown" || v === "searchable-dropdown") return "searchableDropdown";
+    if (v === "searchabledropdown" || v === "searchable-dropdown")
+      return "searchableDropdown";
     // keep textarea, text, email, number, date, radio, checkbox, dropdown, document, toggle
     return v as QType["type"];
   }
 
   function normalizeQuestions(list: any[] = []): QType[] {
     return (list as any[]).map((q) => {
-      const label =
-        (
-          (q as any)?.text ?? // Prefer explicit question text if provided
-          q?.label ??
-          (q as any)?.question ??
-          (q as any)?.questionText ??
-          (q as any)?.title ??
-          (q as any)?.code ??
-          ""
-        ) as string;
+      const label = ((q as any)?.text ?? // Prefer explicit question text if provided
+        q?.label ??
+        (q as any)?.question ??
+        (q as any)?.questionText ??
+        (q as any)?.title ??
+        (q as any)?.code ??
+        "") as string;
 
       return {
         ...q,
@@ -214,7 +223,11 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   function toJsonSafeAnswers(obj: Record<string, any>): Record<string, any> {
     const isFile = (f: any) => typeof File !== "undefined" && f instanceof File;
 
-    const fileToMeta = (f: File) => ({ name: f.name, size: f.size, type: f.type });
+    const fileToMeta = (f: File) => ({
+      name: f.name,
+      size: f.size,
+      type: f.type,
+    });
 
     const safeVal = (v: any): any => {
       if (Array.isArray(v)) {
@@ -251,46 +264,46 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   }, [page?.columns]);
 
   return (
-    <main className="min-h-screen flex justify-center p-4 bg-green-250">
+    <main className="min-h-screen flex justify-center p-4 bg-green-250 overflow-x-hidden">
+      {/* Force remount on step change so animation re-triggers */}
       <div className="w-full max-w-xl">
-        {currentHasQuestions && allPages.length > 0 ? (
-          <div className="flex justify-center pt-0 sm:pt-4 mb-4">
-            <Image
-              src="/images/logo.png"
-              alt="Logo"
-              width={500}
-              height={500}
-              className="w-24 h-auto object-contain"
-            />
-          </div>
-        ) : null}
+        {loading || !page ? null : (
+          <div>
+            {currentHasQuestions && allPages.length > 0 ? (
+              <div className="flex justify-center pt-0 sm:pt-4 mb-4">
+                <Image
+                  src="/images/logo.png"
+                  alt="Logo"
+                  width={500}
+                  height={500}
+                  className="w-24 h-auto object-contain"
+                />
+              </div>
+            ) : null}
 
-        {currentHasQuestions && allPages.length > 0 ? (
-          <div className="mb-4">
-            <ProgressBar currentStepIndex={currentIndex} totalSteps={allPages.length} />
-          </div>
-        ) : null}
+            {currentHasQuestions && allPages.length > 0 ? (
+              <div className="mb-4">
+                <ProgressBar
+                  currentStepIndex={currentIndex}
+                  totalSteps={allPages.length}
+                />
+              </div>
+            ) : null}
 
-        {currentHasQuestions ? (
-          <div className="mb-6 mt-8">
-            <h1 className="text-2xl sm:text-4xl font-medium text-green-850 tracking-tight">
-              {page?.title}
-            </h1>
-          </div>
-        ) : null}
+            {currentHasQuestions ? (
+              <div className="mb-6 mt-8">
+                <h1 className="text-2xl sm:text-4xl font-medium text-green-850 tracking-tight">
+                  {page?.title}
+                </h1>
+              </div>
+            ) : null}
 
-        {error && (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-            {error}
-          </div>
-        )}
+            {error && (
+              <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                {error}
+              </div>
+            )}
 
-        {loading ? (
-          <div></div>
-        ) : !page ? (
-          <div></div>
-        ) : (
-          <>
             {page.desc ? (
               <div
                 className="mb-4 text-gray-700"
@@ -303,7 +316,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                 const key = getCodeKey(q as any) || String(i);
                 // Support per-question column span if provided in template (1..3)
                 const spanRaw = Number((q as any)?.colspan ?? 1);
-                const span = Number.isFinite(spanRaw) ? Math.max(1, Math.min(3, spanRaw)) : 1;
+                const span = Number.isFinite(spanRaw)
+                  ? Math.max(1, Math.min(3, spanRaw))
+                  : 1;
                 const spanClass =
                   span === 3
                     ? "col-span-1 md:col-span-3"
@@ -346,7 +361,11 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                 onClick={() => go("next")}
                 className="px-6 py-3 bg-green-750 hover:bg-green-850 text-white rounded-full font-semibold shadow-xl hover:shadow-[#2b3726be] flex items-center w-full justify-center cursor-pointer"
               >
-                {saving ? "Saving..." : pagesMeta?.nextStep ? "Save & Continue" : "Finish"}
+                {saving
+                  ? "Saving..."
+                  : pagesMeta?.nextStep
+                  ? "Save & Continue"
+                  : "Finish"}
               </button>
             </div>
 
@@ -356,7 +375,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                 dangerouslySetInnerHTML={{ __html: page.footer }}
               />
             ) : null}
-          </>
+          </div>
         )}
       </div>
     </main>

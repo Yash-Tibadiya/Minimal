@@ -129,3 +129,23 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Page enter animation: slide from right with fade */
+@layer utilities {
+  @keyframes enter-from-right-fade {
+    from {
+      opacity: 0;
+      transform: translateX(8rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Apply class="animate-enter" to any container to trigger on mount */
+  .animate-enter {
+    will-change: transform, opacity;
+    animation: enter-from-right-fade 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+}
