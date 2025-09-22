@@ -46,23 +46,16 @@ export type PatientRecordSlim = {
   email?: string;
 };
 
-export async function getPatientByEmail(email: string): Promise<PatientRecordSlim | null> {
+export async function getPatientByEmail(email: string): Promise<typeof patients.$inferSelect | null> {
   const rows = await db
-    .select({
-      id: patients.id,
-      code: patients.code,
-      firstName: patients.firstName,
-      lastName: patients.lastName,
-      phone: patients.phone,
-      state: patients.state,
-      email: patients.email,
-    })
+    .select()
     .from(patients)
     .where(eq(patients.email as any, email))
     .limit(1);
 
   return rows?.[0] ?? null;
 }
+
 
 export async function updatePatientById(
   id: number,
