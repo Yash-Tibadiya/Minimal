@@ -329,7 +329,7 @@ export default function IntakeStepPage() {
                 type="button"
                 disabled={saving}
                 onClick={() => go("next")}
-                className="px-6 py-3 bg-[#193231] hover:bg-[#193231f2] text-white rounded-full font-semibold shadow-xl hover:shadow-[#19323157] flex items-center w-full justify-center cursor-pointer"
+                className="px-6 py-3 bg-green-750 hover:bg-green-850 text-white rounded-full font-semibold shadow-xl hover:shadow-[#2b3726be] flex items-center w-full justify-center cursor-pointer"
               >
                 {saving
                   ? "Saving..."

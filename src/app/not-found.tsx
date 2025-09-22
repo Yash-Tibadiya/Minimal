@@ -6,7 +6,7 @@ export default function NotFound() {
       <div className="flex items-center justify-center w-full px-6 md:px-0">
         <Image
           className="w-full max-w-lg lg:mx-auto"
-          src="assets/404.svg"
+          src="/assets/404.svg"
           alt="404"
           width={500}
           height={500}
