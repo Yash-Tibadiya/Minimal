@@ -100,19 +100,20 @@ const InputRenderer: React.FC<InputRendererProps> = ({
                   value={optValue}
                   checked={isSelected}
                   onChange={(e) => {
-                    setVal(e.target.value);
+                    const v = e.target.value;
+                    setVal(v);
                     if (
                       autoAdvance &&
-                      (!q.showFollowupWhen || e.target.value !== q.showFollowupWhen)
+                      (!q.showFollowupWhen || v !== q.showFollowupWhen)
                     ) {
-                      handleNext?.();
+                      handleNext?.({ [codeKey]: v });
                     }
                   }}
-                  onClick={(e) => {
+                  onClick={() => {
                     if (!autoAdvance) return;
                     if (value === optValue) {
                       if (!q.showFollowupWhen || optValue !== q.showFollowupWhen) {
-                        handleNext?.();
+                        handleNext?.({ [codeKey]: optValue });
                       }
                     }
                   }}
@@ -272,8 +273,9 @@ const InputRenderer: React.FC<InputRendererProps> = ({
                     : "border-gray-300 bg-white text-gray-800 hover:border-[#253c3c]"
                 }`}
                 onClick={() => {
-                  setVal(opt === "yes");
-                  if (autoAdvance) handleNext?.();
+                  const v = opt === "yes";
+                  setVal(v);
+                  if (autoAdvance) handleNext?.({ [codeKey]: v });
                 }}
               >
                 {opt.toUpperCase()}

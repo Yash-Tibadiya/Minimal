@@ -7,6 +7,11 @@ type RouteParams = {
   step: string;
 };
 
+type BranchCtx = {
+  currentStep: string;
+  answers?: Record<string, any> | null;
+};
+
 function computeIndexes(pages: TemplatePage[], code: string) {
   const idx = pages.findIndex((p) => p.code === code);
   return { idx, total: pages.length };
@@ -17,14 +22,123 @@ function findPrevStep(pages: TemplatePage[], idx: number): string | null {
   return null;
 }
 
-function findNextStep(pages: TemplatePage[], idx: number, current: TemplatePage): string | null {
-  // Prefer explicit nextPage if provided and valid
-  if (Array.isArray(current.nextPage) && current.nextPage.length > 0) {
-    const preferred = current.nextPage.find((code) =>
-      typeof code === "string" && pages.some((p) => p.code === code)
-    );
-    if (preferred) return preferred;
+function resolvePageCode(pages: TemplatePage[], target: string | number): string | null {
+  if (typeof target === "number") {
+    const byId = pages.find((p) => p.id === target);
+    return byId?.code ?? null;
   }
+  // try by code first
+  const byCode = pages.find((p) => p.code === target);
+  if (byCode) return byCode.code;
+  // if target looks like a number string, try id
+  const asNum = Number(target);
+  if (Number.isFinite(asNum)) {
+    const byIdStr = pages.find((p) => p.id === asNum);
+    return byIdStr?.code ?? null;
+  }
+  return null;
+}
+
+function getValueForField(field: string, ctx?: BranchCtx): any {
+  if (!ctx?.answers) return undefined;
+  const parts = String(field || "").split(".");
+  if (parts.length < 2) return undefined;
+  const [pageCode, ...rest] = parts;
+  if (pageCode !== ctx.currentStep) return undefined; // only check current-step answers for now
+  const key = rest.join(".");
+  return ctx.answers?.[key];
+}
+
+function evalOp(lhs: any, operator: string | undefined, rhs: any): boolean {
+  const op = (operator || "==").toLowerCase();
+  switch (op) {
+    case "===":
+      return lhs === rhs;
+    case "==":
+    case "=":
+      // allow loose equality for typical string/number cases from JSON
+      // eslint-disable-next-line eqeqeq
+      return lhs == rhs;
+    case "!=":
+      // eslint-disable-next-line eqeqeq
+      return lhs != rhs;
+    case "in":
+      return Array.isArray(rhs) ? rhs.includes(lhs) : false;
+    case "not-in":
+      return Array.isArray(rhs) ? !rhs.includes(lhs) : true;
+    case "contains":
+      if (Array.isArray(lhs)) return lhs.includes(rhs);
+      if (typeof lhs === "string") return lhs.includes(String(rhs));
+      return false;
+    case "not-contains":
+      if (Array.isArray(lhs)) return !lhs.includes(rhs);
+      if (typeof lhs === "string") return !lhs.includes(String(rhs));
+      return true;
+    case ">":
+    case "<":
+    case ">=":
+    case "<=": {
+      const a = Number(lhs);
+      const b = Number(rhs);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+      if (op === ">") return a > b;
+      if (op === "<") return a < b;
+      if (op === ">=") return a >= b;
+      return a <= b;
+    }
+    default:
+      // default to equality
+      // eslint-disable-next-line eqeqeq
+      return lhs == rhs;
+  }
+}
+
+function findNextStep(
+  pages: TemplatePage[],
+  idx: number,
+  current: TemplatePage,
+  ctx?: BranchCtx
+): string | null {
+  // Prefer explicit nextPage if provided
+  if (Array.isArray(current.nextPage) && current.nextPage.length > 0) {
+    // 1) If there are rule objects, evaluate in order when answers are available
+    if (ctx?.answers) {
+      for (const entry of current.nextPage) {
+        if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+          const rule = entry as any;
+          const lhs = getValueForField(rule.field, ctx);
+          if (evalOp(lhs, rule.operator, rule.value)) {
+            const resolved = resolvePageCode(pages, rule.page);
+            if (resolved) return resolved;
+          }
+        }
+      }
+    }
+
+    // 2) If a string fallback exists in nextPage, use the first valid code
+    const preferredStr = current.nextPage.find(
+      (code) => typeof code === "string" && pages.some((p) => p.code === code)
+    ) as string | undefined;
+    if (preferredStr) return preferredStr;
+
+    // 3) No string fallback provided. If there are rule targets, skip them and go to the next non-target page in order.
+    const ruleTargetCodes = new Set<string>();
+    for (const entry of current.nextPage) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const resolved = resolvePageCode(pages, (entry as any).page);
+        if (resolved) ruleTargetCodes.add(resolved);
+      }
+    }
+    if (ruleTargetCodes.size > 0) {
+      for (let i = idx + 1; i < pages.length; i++) {
+        const code = pages[i].code;
+        if (!ruleTargetCodes.has(code)) {
+          return code;
+        }
+      }
+    }
+  }
+
   // Fallback to sequential order
   if (idx >= 0 && idx + 1 < pages.length) {
     return pages[idx + 1].code;
@@ -62,6 +176,7 @@ export async function GET(
   const page = valid ? pages[idx] : null;
 
   const prevStep = valid ? findPrevStep(pages, idx) : null;
+  // In GET we don't have answers yet; prefer static string nextPage or sequential
   const nextStep = valid && page ? findNextStep(pages, idx, page) : null;
 
   // Provide step lists so client can render a progress bar
@@ -130,7 +245,8 @@ export async function POST(
   }
 
   const current = pages[idx];
-  const nextStep = findNextStep(pages, idx, current);
+  // Use branching evaluation with current step answers
+  const nextStep = findNextStep(pages, idx, current, { currentStep: step, answers });
 
   return NextResponse.json({
     success: true,

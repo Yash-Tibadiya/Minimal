@@ -2,6 +2,13 @@ import { db } from "@/db";
 import { intakeFormTemplates, patientIntakeForms } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
+export type NextPageRule = {
+  field: string; // e.g. "khana.khanakhaya"
+  operator?: string; // e.g. "==", "!=", "in", "contains"
+  value?: any;
+  page: number | string; // can be a page id or page code
+};
+
 export type TemplatePage = {
   id?: number;
   order?: number;
@@ -12,7 +19,7 @@ export type TemplatePage = {
   columns?: number;
   questions?: any[];
   pageContent?: string;
-  nextPage?: string[];
+  nextPage?: (string | NextPageRule)[];
 };
 
 type IntakeTemplateRow = typeof intakeFormTemplates.$inferSelect;

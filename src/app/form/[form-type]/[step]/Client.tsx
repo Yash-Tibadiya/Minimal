@@ -131,16 +131,13 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     setAnswers((prev) => ({ ...prev, [name]: value }));
   }
 
-  async function go(direction: "prev" | "next") {
+  async function go(direction: "prev" | "next", override?: Record<string, any>) {
     if (!pagesMeta) return;
-    const target =
-      direction === "prev" ? pagesMeta.prevStep : pagesMeta.nextStep;
+    const target = direction === "prev" ? pagesMeta.prevStep : pagesMeta.nextStep;
 
     if (direction === "prev") {
       if (target) {
-        router.push(
-          `/form/${encodeURIComponent(formType)}/${encodeURIComponent(target)}`
-        );
+        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(target)}`);
       }
       return;
     }
@@ -149,11 +146,10 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     setSaving(true);
     setError(null);
     try {
-      const safeAnswers = toJsonSafeAnswers(answers);
+      const merged = { ...(answers || {}), ...(override || {}) };
+      const safeAnswers = toJsonSafeAnswers(merged);
       const res = await fetch(
-        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(
-          step
-        )}`,
+        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(step)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -169,9 +165,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       const next = data?.nextStep ?? target;
       if (next) {
         // Use push so browser Back button returns to the previous question/step
-        router.push(
-          `/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`
-        );
+        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`);
       } else {
         // No next step - stay or show a placeholder completed message
         // window.location.assign(`/thank-you`);
@@ -263,6 +257,15 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     return "grid grid-cols-1 md:grid-cols-3";
   }, [page?.columns]);
 
+  // Determine if there is a subsequent page in the template order.
+  // This avoids relying on pagesMeta.nextStep from GET (which may be null when branching rules exist).
+  const hasSequentialNext = useMemo(() => {
+    const code = pagesMeta?.currentStep;
+    if (!code) return true;
+    const idx = (allSteps || []).indexOf(code);
+    return idx >= 0 && idx + 1 < (allSteps || []).length;
+  }, [pagesMeta?.currentStep, allSteps]);
+
   return (
     <main className="min-h-screen flex justify-center p-4 bg-green-250 overflow-x-hidden">
       {/* Force remount on step change so animation re-triggers */}
@@ -337,7 +340,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                       question={q as any}
                       value={answers[key]}
                       onChange={updateAnswer}
-                      handleNext={() => go("next")}
+                      handleNext={(override) => go("next", override)}
                       autoAdvance={shouldAutoAdvance}
                     />
                   </div>
@@ -361,11 +364,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                 onClick={() => go("next")}
                 className="px-6 py-3 bg-green-750 hover:bg-green-850 text-white rounded-full font-semibold shadow-xl hover:shadow-[#2b3726be] flex items-center w-full justify-center cursor-pointer"
               >
-                {saving
-                  ? "Saving..."
-                  : pagesMeta?.nextStep
-                  ? "Save & Continue"
-                  : "Finish"}
+                {saving ? "Saving..." : hasSequentialNext ? "Save & Continue" : "Finish"}
               </button>
             </div>
 

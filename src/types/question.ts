@@ -54,6 +54,6 @@ export type InputRendererProps = {
   question: Question;
   value: any;
   onChange: (code: string, value: any) => void;
-  handleNext?: () => void;
+  handleNext?: (override?: Record<string, any>) => void;
   autoAdvance?: boolean; // Only auto-advance when a page has a single question
 };
