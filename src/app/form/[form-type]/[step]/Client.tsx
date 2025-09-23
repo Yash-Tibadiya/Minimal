@@ -34,6 +34,7 @@ type GetPayload = {
   };
   pagesMeta: any;
   page: TemplatePage | null;
+  pagesLookup?: { byId?: Record<string, string> } | null;
 };
 
 type IntakeStepClientProps = {
@@ -62,6 +63,28 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   const [page, setPage] = useState<TemplatePage | null>(null);
   const [questionSteps, setQuestionSteps] = useState<string[]>([]);
   const [allSteps, setAllSteps] = useState<string[]>([]);
+  const [pagesLookup, setPagesLookup] = useState<any>(null);
+
+  const STORAGE_KEY = "qualification_questions";
+
+  const readLS = (): Record<string, any> => {
+    try {
+      if (typeof window === "undefined") return {};
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  };
+
+  const writeLS = (obj: Record<string, any>) => {
+    try {
+      if (typeof window === "undefined") return;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+    } catch {
+      // ignore
+    }
+  };
 
   // answers for current step (keyed by question code/name)
   const [answers, setAnswers] = useState<Record<string, any>>({});
@@ -114,9 +137,20 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       setPage(data.page || null);
       setAllSteps(data.steps?.allSteps || []);
       setQuestionSteps(data.steps?.questionSteps || []);
+      setPagesLookup((data as any)?.pagesLookup || null);
 
-      // Reset answers on step change (no prefill available in current API)
-      setAnswers({});
+      // Prefill answers for this page from localStorage
+      const stored = readLS();
+      const pageCodes: string[] = Array.isArray((data.page as any)?.questions)
+        ? ((data.page as any)?.questions || [])
+            .map((q: any) => String(q?.code || ""))
+            .filter(Boolean)
+        : [];
+      const prefill: Record<string, any> = {};
+      for (const c of pageCodes) {
+        if (stored[c] !== undefined) prefill[c] = stored[c];
+      }
+      setAnswers(prefill);
     } catch (e: any) {
       setError(e?.message || "Something went wrong");
     } finally {
@@ -129,63 +163,70 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   }, [fetchPage]);
 
   function updateAnswer(name: string, value: any) {
-    setAnswers((prev) => ({ ...prev, [name]: value }));
+    setAnswers((prev) => {
+      const next = { ...prev, [name]: value };
+      // Persist to localStorage under qualification_questions
+      const store = readLS();
+      store[name] = toJsonSafeAnswers({ [name]: value })[name];
+      writeLS(store);
+      return next;
+    });
     setFieldErrors((prev) => ({ ...prev, [name]: null }));
   }
 
   async function go(direction: "prev" | "next", override?: Record<string, any>) {
     if (!pagesMeta) return;
-    const target = direction === "prev" ? pagesMeta.prevStep : pagesMeta.nextStep;
 
     if (direction === "prev") {
-      if (target) {
-        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(target)}`);
+      const prev = pagesMeta.prevStep;
+      if (prev) {
+        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(prev)}`);
       }
       return;
     }
 
-    // If going next, validate required/pattern before saving
-    if (direction === "next") {
-      const mergedPreview = { ...(answers || {}), ...(override || {}) };
-      const errs = getValidationErrors((page as any)?.questions || [], mergedPreview);
-      if (Object.keys(errs).length > 0) {
-        setFieldErrors(errs);
-        return;
-      }
+    // Merge answers with any override from autoAdvance
+    const merged = { ...(answers || {}), ...(override || {}) };
+
+    // Validate required/pattern before continuing
+    const errs = getValidationErrors((page as any)?.questions || [], merged);
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
     }
 
-    // direction === "next" - persist progress if session has a patient and a row already exists (handled server-side)
-    setSaving(true);
-    setError(null);
+    // Persist current page answers into localStorage under qualification_questions
     try {
-      const merged = { ...(answers || {}), ...(override || {}) };
-      const safeAnswers = toJsonSafeAnswers(merged);
-      const res = await fetch(
-        `/api/intake/${encodeURIComponent(formType)}/${encodeURIComponent(step)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ answers: safeAnswers }),
-        }
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data?.success) {
-        throw new Error(data?.message || "Failed to save step");
+      const safe = toJsonSafeAnswers(merged);
+      const store = readLS();
+      // Only write values for codes present on the current page
+      const codes: string[] = Array.isArray((page as any)?.questions)
+        ? ((page as any)?.questions || [])
+            .map((q: any) => String(q?.code || ""))
+            .filter(Boolean)
+        : [];
+      for (const c of codes) {
+        if (c in safe) store[c] = safe[c];
       }
+      writeLS(store);
+    } catch {
+      // ignore localStorage errors
+    }
 
-      const next = data?.nextStep ?? target;
-      if (next) {
-        // Use push so browser Back button returns to the previous question/step
-        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(next)}`);
-      } else {
-        // No next step - stay or show a placeholder completed message
-        // window.location.assign(`/thank-you`);
-      }
-    } catch (e: any) {
-      setError(e?.message || "Failed to proceed");
-    } finally {
-      setSaving(false);
+    // Compute next step on the client using page.nextPage rules and fallback order
+    const allCodes: string[] = Array.isArray(allSteps) ? allSteps : [];
+    const byId: Record<string, string> | undefined = (pagesLookup as any)?.byId;
+    const nextCode =
+      findNextStepClient(
+        (page as any) || {},
+        String(pagesMeta.currentStep || ""),
+        merged,
+        allCodes,
+        byId
+      ) ?? pagesMeta.nextStep;
+
+    if (nextCode) {
+      router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(nextCode)}`);
     }
   }
 
@@ -424,7 +465,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                 onClick={() => go("next")}
                 className="px-6 py-3 bg-green-750 hover:bg-green-850 text-white rounded-full font-semibold shadow-xl hover:shadow-[#2b3726be] flex items-center w-full justify-center cursor-pointer"
               >
-                {saving ? "Saving..." : hasSequentialNext ? "Save & Continue" : "Finish"}
+                {hasSequentialNext ? "Continue" : "Finish"}
               </button>
             </div>
 
@@ -439,4 +480,143 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       </div>
     </main>
   );
+}
+
+
+// Client-side branching helpers for next step resolution
+type NextPageRuleClient = {
+  field: string;
+  operator?: string;
+  value?: any;
+  page: number | string;
+};
+
+function clientGetValueForField(
+  field: string,
+  currentStepCode: string,
+  ans?: Record<string, any>
+) {
+  if (!ans) return undefined;
+  const parts = String(field || "").split(".");
+  if (parts.length < 2) return undefined;
+  const [pageCode, ...rest] = parts;
+  if (pageCode !== currentStepCode) return undefined;
+  const key = rest.join(".");
+  return (ans as any)[key];
+}
+
+function clientEvalOp(lhs: any, operator: string | undefined, rhs: any): boolean {
+  const op = String(operator || "==").toLowerCase();
+  switch (op) {
+    case "===":
+      return lhs === rhs;
+    case "==":
+    case "=":
+      // eslint-disable-next-line eqeqeq
+      return lhs == rhs;
+    case "!=":
+      // eslint-disable-next-line eqeqeq
+      return lhs != rhs;
+    case "in":
+      return Array.isArray(rhs) ? rhs.includes(lhs) : false;
+    case "not-in":
+      return Array.isArray(rhs) ? !rhs.includes(lhs) : true;
+    case "contains":
+      if (Array.isArray(lhs)) return lhs.includes(rhs);
+      if (typeof lhs === "string") return lhs.includes(String(rhs));
+      return false;
+    case "not-contains":
+      if (Array.isArray(lhs)) return !lhs.includes(rhs);
+      if (typeof lhs === "string") return !lhs.includes(String(rhs));
+      return true;
+    case ">":
+    case "<":
+    case ">=":
+    case "<=": {
+      const a = Number(lhs);
+      const b = Number(rhs);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+      if (op === ">") return a > b;
+      if (op === "<") return a < b;
+      if (op === ">=") return a >= b;
+      return a <= b;
+    }
+    default:
+      // eslint-disable-next-line eqeqeq
+      return lhs == rhs;
+  }
+}
+
+function resolvePageTarget(
+  target: number | string,
+  byId?: Record<string, string>
+): string | null {
+  if (typeof target === "number") {
+    return byId?.[String(target)] ?? null;
+  }
+  const asNum = Number(target);
+  if (Number.isFinite(asNum) && String(asNum) === String(target)) {
+    return byId?.[String(asNum)] ?? null;
+  }
+  if (typeof target === "string") return target;
+  return null;
+}
+
+function findNextStepClient(
+  current: any,
+  currentCode: string,
+  answers: Record<string, any> | undefined,
+  allCodes: string[],
+  byId?: Record<string, string>
+): string | null {
+  const nextPage = Array.isArray(current?.nextPage) ? current.nextPage : [];
+
+  // 1) Evaluate rule objects in order when answers are available
+  if (answers && nextPage.length > 0) {
+    for (const entry of nextPage) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const rule = entry as NextPageRuleClient;
+        const lhs = clientGetValueForField(rule.field, currentCode, answers);
+        if (clientEvalOp(lhs, rule.operator, rule.value)) {
+          const resolved = resolvePageTarget(rule.page, byId);
+          if (resolved && allCodes.includes(resolved)) return resolved;
+        }
+      }
+    }
+  }
+
+  // 2) If a string fallback exists in nextPage, use the first valid code
+  for (const entry of nextPage) {
+    if (typeof entry === "string" && allCodes.includes(entry)) {
+      return entry;
+    }
+  }
+
+  // 3) No string fallback. If there are rule targets, skip them and go to the next non-target page in order.
+  if (nextPage.length > 0) {
+    const ruleTargetCodes = new Set<string>();
+    for (const entry of nextPage) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) {
+        const resolved = resolvePageTarget((entry as any).page, byId);
+        if (resolved) ruleTargetCodes.add(resolved);
+      }
+    }
+    if (ruleTargetCodes.size > 0) {
+      const idx = allCodes.indexOf(currentCode);
+      for (let i = idx + 1; i < allCodes.length; i++) {
+        const code = allCodes[i];
+        if (!ruleTargetCodes.has(code)) {
+          return code;
+        }
+      }
+      return null;
+    }
+  }
+
+  // Fallback to sequential order
+  const idx = allCodes.indexOf(currentCode);
+  if (idx >= 0 && idx + 1 < allCodes.length) {
+    return allCodes[idx + 1];
+  }
+  return null;
 }

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTemplateByCode, type TemplatePage, updatePatientIntakeProgress } from "@/model/intake";
-import { getSession } from "@/auth";
+import { getTemplateByCode, type TemplatePage } from "@/model/intake";
 
 type RouteParams = {
   "form-type": string;
@@ -185,6 +184,14 @@ export async function GET(
     .filter((p: any) => Array.isArray(p?.questions) && p.questions.length > 0)
     .map((p) => p.code);
 
+  // Provide a simple lookup so clients can resolve rule targets that reference page IDs
+  const idToCode: Record<string, string> = {};
+  for (const p of pages) {
+    if ((p as any)?.id != null) {
+      idToCode[String((p as any).id)] = p.code;
+    }
+  }
+
   return NextResponse.json({
     success: true,
     template: {
@@ -198,6 +205,9 @@ export async function GET(
       allSteps,
       questionSteps,
     },
+    pagesLookup: {
+      byId: idToCode,
+    },
     pagesMeta: {
       total: pages.length,
       firstStep,
@@ -210,47 +220,7 @@ export async function GET(
   });
 }
 
-export async function POST(
-  req: Request,
-  context: { params: Promise<RouteParams> }
-) {
-  const params = await context.params;
-  const formType = (params?.["form-type"] || "").toString().trim();
-  const step = (params?.step || "").toString().trim();
-
-  if (!formType || !step) {
-    return NextResponse.json({ success: false, message: "Missing form-type or step" }, { status: 400 });
-  }
-
-  const tpl = await getTemplateByCode(formType);
-  if (!tpl) {
-    return NextResponse.json({ success: false, message: "Form template not found" }, { status: 404 });
-  }
-
-  const pages = tpl.pages || [];
-  const { idx } = computeIndexes(pages, step);
-  if (idx < 0) {
-    return NextResponse.json({ success: false, message: "Invalid step" }, { status: 400 });
-  }
-
-  const body = await req.json().catch(() => ({}));
-  const answers = body?.answers ?? null;
-
-  // Persist progress ONLY if a patient_intake_forms row already exists (no inserts; avoids intake_form_config)
-  const session = await getSession();
-  let persisted = false;
-  if (session?.user?.patientId) {
-    const result = await updatePatientIntakeProgress(session.user.patientId, tpl.code!, step, answers);
-    persisted = result.persisted;
-  }
-
-  const current = pages[idx];
-  // Use branching evaluation with current step answers
-  const nextStep = findNextStep(pages, idx, current, { currentStep: step, answers });
-
-  return NextResponse.json({
-    success: true,
-    nextStep,
-    persisted,
-  });
-}
+/**
+ * POST handler removed — client persists answers to localStorage ("qualification_questions")
+ * and computes next step on the client. Keep GET for page metadata.
+ */
