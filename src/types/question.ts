@@ -33,6 +33,10 @@ export type Question = {
   label?: string;
   required?: boolean;
   placeholder?: string;
+  hint?: string;
+  requiredError?: string;
+  pattern?: string;
+  patternError?: string;
 
   // validations / constraints
   min?: number;
@@ -56,4 +60,5 @@ export type InputRendererProps = {
   onChange: (code: string, value: any) => void;
   handleNext?: (override?: Record<string, any>) => void;
   autoAdvance?: boolean; // Only auto-advance when a page has a single question
+  error?: string | null;
 };

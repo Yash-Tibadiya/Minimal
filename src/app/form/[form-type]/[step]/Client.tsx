@@ -65,6 +65,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
 
   // answers for current step (keyed by question code/name)
   const [answers, setAnswers] = useState<Record<string, any>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
 
   const currentIndex = useMemo(() => {
     if (!pagesMeta) return 1;
@@ -129,6 +130,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
 
   function updateAnswer(name: string, value: any) {
     setAnswers((prev) => ({ ...prev, [name]: value }));
+    setFieldErrors((prev) => ({ ...prev, [name]: null }));
   }
 
   async function go(direction: "prev" | "next", override?: Record<string, any>) {
@@ -140,6 +142,16 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
         router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(target)}`);
       }
       return;
+    }
+
+    // If going next, validate required/pattern before saving
+    if (direction === "next") {
+      const mergedPreview = { ...(answers || {}), ...(override || {}) };
+      const errs = getValidationErrors((page as any)?.questions || [], mergedPreview);
+      if (Object.keys(errs).length > 0) {
+        setFieldErrors(errs);
+        return;
+      }
     }
 
     // direction === "next" - persist progress if session has a patient and a row already exists (handled server-side)
@@ -241,6 +253,45 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     return out;
   }
 
+  // Validation helpers
+  function isEmptyValue(v: any): boolean {
+    if (v === null || v === undefined) return true;
+    if (typeof v === "string") return v.trim().length === 0;
+    if (Array.isArray(v)) return v.length === 0;
+    return false;
+  }
+
+  function getValidationErrors(questions: any[] = [], answersObj: Record<string, any> = {}): Record<string, string> {
+    const errs: Record<string, string> = {};
+    for (const rawQ of (questions as any[])) {
+      const key = getCodeKey(rawQ as any);
+      if (!key) continue;
+      const t = String((rawQ as any)?.type || "text").toLowerCase();
+      const val = (answersObj as any)[key];
+
+      if ((rawQ as any)?.required) {
+        const isBool = t === "yesno" || t === "toggle";
+        const missing = isBool ? (val === undefined || val === null) : isEmptyValue(val);
+        if (missing) {
+          errs[key] = (rawQ as any)?.requiredError || "This field is required";
+          continue;
+        }
+      }
+
+      if ((rawQ as any)?.pattern && typeof val === "string") {
+        try {
+          const re = new RegExp((rawQ as any).pattern);
+          if (!re.test(val)) {
+            errs[key] = (rawQ as any)?.patternError || "Invalid format";
+          }
+        } catch {
+          // ignore invalid regex
+        }
+      }
+    }
+    return errs;
+  }
+
   const normalizedQuestions = useMemo(
     () => normalizeQuestions((page?.questions as any) || []),
     [page?.questions]
@@ -334,6 +385,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                     {q.label ? (
                       <label className="block text-sm font-medium mb-1">
                         {q.label}
+                        {(q as any)?.required ? (
+                          <span className="text-red-600 ml-0.5">*</span>
+                        ) : null}
                       </label>
                     ) : null}
                     <InputRenderer
@@ -343,6 +397,12 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                       handleNext={(override) => go("next", override)}
                       autoAdvance={shouldAutoAdvance}
                     />
+                    {(q as any)?.hint ? (
+                      <p className="text-xs text-gray-500 mt-1">{(q as any).hint}</p>
+                    ) : null}
+                    {fieldErrors[key] ? (
+                      <p className="text-xs text-red-600 mt-1">{fieldErrors[key]}</p>
+                    ) : null}
                   </div>
                 );
               })}
