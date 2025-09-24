@@ -8,9 +8,10 @@ type RouteParams = { "form-type": string };
 export default async function FormTypeIndex({
   params,
 }: {
-  params: RouteParams;
+  params: Promise<RouteParams>;
 }) {
-  const formType = (params?.["form-type"] || "").toString().trim();
+  const { ["form-type"]: formTypeParam } = await params;
+  const formType = (formTypeParam || "").toString().trim();
 
   if (!formType) {
     redirect(AppRoutes.notFound);
@@ -59,7 +60,10 @@ export default async function FormTypeIndex({
           </h1>
 
           {description ? (
-            <p className="text-gray-700 mb-4">{description}</p>
+            <div
+              className="prose prose-sm max-w-none text-gray-700 mb-4"
+              dangerouslySetInnerHTML={{ __html: description || "" }}
+            />
           ) : null}
 
           {previewContent ? (
