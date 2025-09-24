@@ -81,19 +81,71 @@ export default function Client(props: PreviewClientProps) {
 
   return (
     <>
-      <div
-        className="preview-content prose prose-sm max-w-none text-gray-700"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      <div className="outer-card rounded-2xl border border-gray-200 shadow-lg bg-white">
+        <div
+          className="preview-content prose prose-sm max-w-none text-gray-700"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+
+        <div className="flex items-center rounded-lg bg-green-250 px-4 py-3">
+          <div className="flex flex-row gap-2 text-lg text-gray-700">
+            <span className="font-medium text-green-650">Date :</span>{" "}
+            <span className="font-semibold text-black">
+              {new Date().toLocaleDateString("en-US", { timeZone: "UTC" })}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-lg border shadow-lg bg-green-250 px-4 py-4">
+          <p className="font-semibold text-emerald-900 mb-1">
+            Consent and Acknowledgement
+          </p>
+          <ul className="list-disc pl-5 text-sm text-emerald-900 space-y-1">
+            <li>
+              I confirm the information provided above is accurate to the best
+              of my knowledge.
+            </li>
+            <li>
+              I consent to share this information with the clinic for evaluation
+              and treatment planning.
+            </li>
+            <li>
+              I understand this summary is not a medical diagnosis and further
+              consultation may be required.
+            </li>
+          </ul>
+        </div>
+
+        <div className="mt-2 px-4 py-4">
+          <p className="text-sm text-gray-700">
+            For questions regarding your submission, contact us at{" "}
+            <a
+              href="mailto:hello@joinminimal.com"
+              className="text-green-700 underline"
+            >
+              hello@joinminimal.com
+            </a>{" "}
+            or call{" "}
+            <a href="tel:+14156492930" className="text-green-700 underline">
+              +1 (415) 649 2930
+            </a>
+            .
+          </p>
+          <p className="text-sm text-green-650 mt-2">
+            This document may contain sensitive information. Do not share
+            publicly.
+          </p>
+        </div>
+      </div>
+
       <style jsx global>{`
         /* Clean minimal card */
+        .outer-card {
+          padding: 24px 28px;
+        }
         .preview-content {
           background-color: #ffffff;
-          border: 1px solid #e5e7eb;
           border-radius: 12px;
-          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1),
-            0 1px 2px 0 rgba(0, 0, 0, 0.06);
-          padding: 24px 28px;
           overflow-x: auto;
         }
 
@@ -254,6 +306,28 @@ export default function Client(props: PreviewClientProps) {
           }
         }
       `}</style>
+
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `
+            (function () {
+              try {
+                var el = document.getElementById('generated-date');
+                if (!el) return;
+                var d = new Date();
+                var fmt = new Intl.DateTimeFormat([], {
+                  year: 'numeric',
+                  month: 'long',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }).format(d);
+                el.textContent = fmt;
+              } catch (e) {}
+            })();
+          `,
+        }}
+      />
     </>
   );
 }
