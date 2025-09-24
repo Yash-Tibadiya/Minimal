@@ -64,6 +64,7 @@ function replacePlaceholders(
 export default function Client(props: PreviewClientProps) {
   const storageKey = props.storageKey ?? "qualification_questions";
   const [html, setHtml] = useState(props.content || "");
+  const [signatureName, setSignatureName] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -74,8 +75,35 @@ export default function Client(props: PreviewClientProps) {
       const answers = raw ? (JSON.parse(raw) as Record<string, any>) : {};
       const replaced = replacePlaceholders(props.content || "", answers);
       setHtml(replaced);
+
+      // Build signature if we have first/last name in answers.
+      // Try common field codes, fall back gracefully.
+      const first =
+        (answers.firstName as any) ??
+        (answers.firstname as any) ??
+        (answers.first_name as any) ??
+        (answers["patient.firstName"] as any) ??
+        (answers["patient.firstname"] as any);
+      const last =
+        (answers.lastName as any) ??
+        (answers.lastname as any) ??
+        (answers.last_name as any) ??
+        (answers["patient.lastName"] as any) ??
+        (answers["patient.lastname"] as any);
+
+      const firstStr =
+        typeof first === "string" ? first.trim() : valueToString(first).trim();
+      const lastStr =
+        typeof last === "string" ? last.trim() : valueToString(last).trim();
+
+      if (firstStr || lastStr) {
+        setSignatureName([firstStr, lastStr].filter(Boolean).join(" "));
+      } else {
+        setSignatureName(null);
+      }
     } catch {
       setHtml(props.content || "");
+      setSignatureName(null);
     }
   }, [props.content, storageKey]);
 
@@ -114,9 +142,30 @@ export default function Client(props: PreviewClientProps) {
               consultation may be required.
             </li>
           </ul>
+
+          {signatureName ? (
+            <div className="mt-5">
+              <div className="text-sm font-medium uppercase tracking-wide text-black mb-1">
+                Signature
+              </div>
+              <div className="rounded-md border bg-white px-3 py-3 shadow-md">
+                <span className="signature-name">{signatureName}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        <div className="mt-2 px-4 py-4">
+        {/* Primary action */}
+        <div className="mt-4">
+          <a
+            href="#get-medication"
+            className="inline-flex w-full items-center justify-center py-4 bg-green-750 hover:bg-green-850 text-white rounded-full font-bold text-2xl shadow-md hover:shadow-lg transition-colors"
+          >
+            Get Medication
+          </a>
+        </div>
+
+        <div className="mt-4 px-4 py-4">
           <p className="text-sm text-gray-700">
             For questions regarding your submission, contact us at{" "}
             <a
@@ -147,6 +196,14 @@ export default function Client(props: PreviewClientProps) {
           background-color: #ffffff;
           border-radius: 12px;
           overflow-x: auto;
+        }
+
+        /* Signature flourish */
+        .signature-name {
+          font-family: "Segoe Script", "Lucida Handwriting", "Pacifico", cursive;
+          font-size: 1.25rem;
+          font-weight: 600;
+          color: #065f46; /* emerald-700 */
         }
 
         /* Clean headings */
