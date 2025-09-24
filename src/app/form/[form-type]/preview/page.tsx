@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppRoutes } from "@/routes-config";
 import { getTemplateByCode } from "@/model/intake";
+import Client from "./Client";
 
 type RouteParams = { "form-type": string };
 
@@ -37,10 +38,7 @@ export default async function FormPreviewPage({
 
         <div className="p-6 sm:p-8">
           {previewContent ? (
-            <div
-              className="prose prose-sm max-w-none text-gray-700"
-              dangerouslySetInnerHTML={{ __html: previewContent }}
-            />
+            <Client content={previewContent} />
           ) : (
             <p className="text-gray-700">No preview available.</p>
           )}
