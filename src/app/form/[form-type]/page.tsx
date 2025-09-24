@@ -31,7 +31,6 @@ export default async function FormTypeIndex({
   const description = (tpl as any).description as string | null;
   const image = (tpl as any).image as string | null;
   const buttonText = (tpl as any).buttonText || "Get Started";
-  const previewContent = (tpl as any).previewContent as string | null;
 
   return (
     <main className="min-h-screen flex justify-center p-4 bg-green-250 overflow-x-hidden">
@@ -66,12 +65,6 @@ export default async function FormTypeIndex({
             />
           ) : null}
 
-          {previewContent ? (
-            <div
-              className="prose prose-sm max-w-none text-gray-700 mb-6"
-              dangerouslySetInnerHTML={{ __html: previewContent }}
-            />
-          ) : null}
 
           <div className="mt-4">
             <Link

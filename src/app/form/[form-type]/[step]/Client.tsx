@@ -227,6 +227,8 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
 
     if (nextCode) {
       router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(nextCode)}`);
+    } else {
+      router.push(`/form/${encodeURIComponent(formType)}/preview`);
     }
   }
 
