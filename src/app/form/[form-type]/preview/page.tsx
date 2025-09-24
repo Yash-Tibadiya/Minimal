@@ -27,16 +27,16 @@ export default async function FormPreviewPage({
 
   return (
     <main className="min-h-screen flex justify-center p-4 bg-green-250 overflow-x-hidden">
-      <div className="w-full max-w-xl">
+      <div className="w-full max-w-3xl">
         <div className="flex justify-center pt-4 mb-4">
           <img
             src="/images/logo.png"
             alt="Logo"
-            className="w-24 h-auto object-contain"
+            className="w-32 h-auto object-contain"
           />
         </div>
 
-        <div className="p-6 sm:p-8">
+        <div className="p-1">
           {previewContent ? (
             <Client content={previewContent} />
           ) : (
