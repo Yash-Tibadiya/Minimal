@@ -3,6 +3,23 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Add the font-face definition for Quincy CF */
+@font-face {
+  font-family: 'Quincy CF';
+  src: url('/fonts/QuincyCF-Regular.woff2') format('woff2'),
+       url('/fonts/QuincyCF-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Quincy CF';
+  src: url('/fonts/QuincyCF-Medium.woff2') format('woff2'),
+       url('/fonts/QuincyCF-Medium.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -83,44 +100,6 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-  --green-550: #7f9b75;
-  --green-650: #6b8262;
-  --green-750: #495843;
-  --green-850: #2e382a;
-} */
-
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -147,5 +126,10 @@
   .animate-enter {
     will-change: transform, opacity;
     animation: enter-from-right-fade 900ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Create the custom utility class `font-quincy` */
+  .font-quincy {
+    font-family: 'Quincy CF', serif;
   }
 }

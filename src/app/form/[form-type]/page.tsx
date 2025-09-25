@@ -35,17 +35,17 @@ export default async function FormTypeIndex({
   return (
     <main className="min-h-screen flex justify-center p-4 bg-green-250 overflow-x-hidden">
       <div className="w-full max-w-xl">
-        <div className="flex justify-center pt-4 mb-4">
+        <div className="flex justify-center pt-4">
           <img
             src="/images/logo.png"
             alt="Logo"
-            className="w-24 h-auto object-contain"
+            className="w-36 h-auto object-contain"
           />
         </div>
 
         <div className="p-6 sm:p-8">
           {image ? (
-            <div className="w-full mb-6">
+            <div className="w-full mb-4">
               <img
                 src={image}
                 alt={title}
@@ -54,7 +54,7 @@ export default async function FormTypeIndex({
             </div>
           ) : null}
 
-          <h1 className="text-3xl sm:text-4xl font-medium text-green-850 mb-3">
+          <h1 className="font-quincy text-4xl sm:text-5xl font-medium text-green-850 w-full flex justify-center items-center mb-3">
             {title}
           </h1>
 
@@ -64,7 +64,6 @@ export default async function FormTypeIndex({
               dangerouslySetInnerHTML={{ __html: description || "" }}
             />
           ) : null}
-
 
           <div className="mt-4">
             <Link
