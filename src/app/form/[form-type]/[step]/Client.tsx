@@ -88,7 +88,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
 
   // answers for current step (keyed by question code/name)
   const [answers, setAnswers] = useState<Record<string, any>>({});
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string | null>>(
+    {}
+  );
 
   const currentIndex = useMemo(() => {
     if (!pagesMeta) return 1;
@@ -167,20 +169,30 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       const next = { ...prev, [name]: value };
       // Persist to localStorage under qualification_questions
       const store = readLS();
-      store[name] = toJsonSafeAnswers({ [name]: value })[name];
+      const t = getNormalizedTypeForCode(name);
+      const toStore =
+        t === "phone"
+          ? toE164US(value)
+          : toJsonSafeAnswers({ [name]: value })[name];
+      store[name] = toStore;
       writeLS(store);
       return next;
     });
     setFieldErrors((prev) => ({ ...prev, [name]: null }));
   }
 
-  async function go(direction: "prev" | "next", override?: Record<string, any>) {
+  async function go(
+    direction: "prev" | "next",
+    override?: Record<string, any>
+  ) {
     if (!pagesMeta) return;
 
     if (direction === "prev") {
       const prev = pagesMeta.prevStep;
       if (prev) {
-        router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(prev)}`);
+        router.push(
+          `/form/${encodeURIComponent(formType)}/${encodeURIComponent(prev)}`
+        );
       }
       return;
     }
@@ -197,7 +209,6 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
 
     // Persist current page answers into localStorage under qualification_questions
     try {
-      const safe = toJsonSafeAnswers(merged);
       const store = readLS();
       // Only write values for codes present on the current page
       const codes: string[] = Array.isArray((page as any)?.questions)
@@ -206,7 +217,11 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
             .filter(Boolean)
         : [];
       for (const c of codes) {
-        if (c in safe) store[c] = safe[c];
+        if (!(c in merged)) continue;
+        const t = getNormalizedTypeForCode(c);
+        const v = (merged as any)[c];
+        store[c] =
+          t === "phone" ? toE164US(v) : toJsonSafeAnswers({ [c]: v })[c];
       }
       writeLS(store);
     } catch {
@@ -226,7 +241,9 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       ) ?? pagesMeta.nextStep;
 
     if (nextCode) {
-      router.push(`/form/${encodeURIComponent(formType)}/${encodeURIComponent(nextCode)}`);
+      router.push(
+        `/form/${encodeURIComponent(formType)}/${encodeURIComponent(nextCode)}`
+      );
     } else {
       router.push(`/form/${encodeURIComponent(formType)}/preview`);
     }
@@ -244,6 +261,26 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     return v as QType["type"];
   }
 
+  // Normalize a phone display/masked value to E.164 (+1XXXXXXXXXX) for US numbers
+  const toE164US = (v: any): string => {
+    const s = String(v ?? "");
+    const digits = s.replace(/\D/g, "");
+    if (!digits) return "";
+    if (digits.length === 11 && digits.startsWith("1"))
+      return `+1${digits.slice(1)}`;
+    if (digits.length === 10) return `+1${digits}`;
+    // Fallback: prefix + to whatever digits exist (keeps compatibility if future intl support is added)
+    return `+${digits}`;
+  };
+
+  // Find the normalized type for a question by its code on the current page
+  const getNormalizedTypeForCode = (code: string): QType["type"] | null => {
+    const list = (page?.questions as any[]) || [];
+    const found = list.find((q: any) => String(q?.code ?? "") === code);
+    if (!found) return null;
+    return normalizeType(found?.type);
+  };
+
   function normalizeQuestions(list: any[] = []): QType[] {
     return (list as any[]).map((q) => {
       const label = ((q as any)?.text ?? // Prefer explicit question text if provided
@@ -254,13 +291,22 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
         (q as any)?.code ??
         "") as string;
 
+      const normalizedType = normalizeType(q?.type);
+      const defaultPlaceholder =
+        normalizedType === "phone"
+          ? "+1 212 3344556"
+          : normalizedType === "email"
+          ? "name@example.com"
+          : undefined;
+
       return {
         ...q,
-        type: normalizeType(q?.type),
+        type: normalizedType,
         // Ensure a label is available so the question text shows even if template uses different keys
         label,
         // Provide a sensible placeholder if not provided
-        placeholder: q?.placeholder ?? (label || undefined),
+        placeholder:
+          q?.placeholder ?? defaultPlaceholder ?? (label || undefined),
       } as any;
     });
   }
@@ -304,31 +350,94 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
     return false;
   }
 
-  function getValidationErrors(questions: any[] = [], answersObj: Record<string, any> = {}): Record<string, string> {
+  function getValidationErrors(
+    questions: any[] = [],
+    answersObj: Record<string, any> = {}
+  ): Record<string, string> {
     const errs: Record<string, string> = {};
-    for (const rawQ of (questions as any[])) {
+    for (const rawQ of questions as any[]) {
       const key = getCodeKey(rawQ as any);
       if (!key) continue;
       const t = String((rawQ as any)?.type || "text").toLowerCase();
       const val = (answersObj as any)[key];
 
+      // Required
       if ((rawQ as any)?.required) {
         const isBool = t === "yesno" || t === "toggle";
-        const missing = isBool ? (val === undefined || val === null) : isEmptyValue(val);
+        const missing = isBool
+          ? val === undefined || val === null
+          : isEmptyValue(val);
         if (missing) {
           errs[key] = (rawQ as any)?.requiredError || "This field is required";
           continue;
         }
       }
 
+      // Pattern
       if ((rawQ as any)?.pattern && typeof val === "string") {
         try {
           const re = new RegExp((rawQ as any).pattern);
           if (!re.test(val)) {
             errs[key] = (rawQ as any)?.patternError || "Invalid format";
+            continue;
           }
         } catch {
           // ignore invalid regex
+        }
+      }
+
+      // Number constraints: min/max and numeric
+      if (t === "number") {
+        const hasVal = val !== "" && val !== null && val !== undefined;
+        if (!hasVal) continue;
+        const num = typeof val === "number" ? val : parseFloat(String(val));
+        if (Number.isNaN(num)) {
+          errs[key] = "Enter a valid number";
+          continue;
+        }
+        const hasMin = typeof (rawQ as any).min === "number";
+        const hasMax = typeof (rawQ as any).max === "number";
+        if (
+          hasMin &&
+          hasMax &&
+          (num < (rawQ as any).min || num > (rawQ as any).max)
+        ) {
+          errs[key] = `Enter a value between ${(rawQ as any).min} and ${
+            (rawQ as any).max
+          }`;
+          continue;
+        }
+        if (hasMin && num < (rawQ as any).min) {
+          errs[key] = `Enter a value of at least ${(rawQ as any).min}`;
+          continue;
+        }
+        if (hasMax && num > (rawQ as any).max) {
+          errs[key] = `Enter a value of at most ${(rawQ as any).max}`;
+          continue;
+        }
+      }
+
+      // Email constraints (basic)
+      if (t === "email") {
+        const s = String(val ?? "");
+        if (s) {
+          const reEmail = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+          if (!reEmail.test(s)) {
+            errs[key] = "Enter a valid email address like name@example.com";
+            continue;
+          }
+        }
+      }
+
+      // Phone constraints (basic)
+      if (t === "phone") {
+        const s = String(val ?? "");
+        if (s) {
+          const digits = s.replace(/\D/g, "");
+          if (digits.length < 10 || digits.length > 15) {
+            errs[key] = "Enter a valid phone number like +1 212 3344556";
+            continue;
+          }
         }
       }
     }
@@ -365,8 +474,8 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
       {/* Force remount on step change so animation re-triggers */}
       <div key={step} className="w-full max-w-xl">
         {loading || !page ? null : (
-          <div className={currentHasQuestions ? "animate-enter" : undefined}>
-            {currentHasQuestions && allPages.length > 0 ? (
+          <div className="animate-enter">
+            {allPages.length > 0 ? (
               <div className="flex justify-center pt-0 sm:pt-4 mb-4">
                 <Image
                   src="/images/logo.png"
@@ -378,7 +487,7 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
               </div>
             ) : null}
 
-            {currentHasQuestions && allPages.length > 0 ? (
+            {allPages.length > 0 ? (
               <div className="mb-4">
                 <ProgressBar
                   currentStepIndex={currentIndex}
@@ -439,12 +548,18 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
                       onChange={updateAnswer}
                       handleNext={(override) => go("next", override)}
                       autoAdvance={shouldAutoAdvance}
+                      error={fieldErrors[key]}
                     />
                     {(q as any)?.hint ? (
-                      <p className="text-xs text-gray-500 mt-1">{(q as any).hint}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {(q as any).hint}
+                      </p>
                     ) : null}
-                    {fieldErrors[key] ? (
-                      <p className="text-xs text-red-600 mt-1">{fieldErrors[key]}</p>
+                    {fieldErrors[key] &&
+                    !["number", "email", "phone"].includes((q as any).type) ? (
+                      <p className="text-xs text-red-600 mt-1">
+                        {fieldErrors[key]}
+                      </p>
                     ) : null}
                   </div>
                 );
@@ -484,7 +599,6 @@ export default function IntakeStepClient(props: IntakeStepClientProps) {
   );
 }
 
-
 // Client-side branching helpers for next step resolution
 type NextPageRuleClient = {
   field: string;
@@ -507,7 +621,11 @@ function clientGetValueForField(
   return (ans as any)[key];
 }
 
-function clientEvalOp(lhs: any, operator: string | undefined, rhs: any): boolean {
+function clientEvalOp(
+  lhs: any,
+  operator: string | undefined,
+  rhs: any
+): boolean {
   const op = String(operator || "==").toLowerCase();
   switch (op) {
     case "===":
